@@ -2,6 +2,7 @@
 require 'faraday'
 require 'json'
 require 'yaml'
+#testing2
 
 @configfile = File.join(File.dirname(Puppet.settings[:config]), 'servicenowfacts.yml')
 raise('ERROR file does not exists: ' + @configfile) unless File.exist?(@configfile)
@@ -13,21 +14,21 @@ SN_INSTANCE = @config['servicenow']['instance']
 SN_USER = @config['servicenow']['user']
 SN_WEBSERVICE = @config['servicenow']['webservice']
 SN_PASS = @config['servicenow']['password']
-SN_VARIABLES = @config['servicenow']['variables']
-SN_CACHEDIR = @config['servicenow']['cachedir']
+#SN_VARIABLES = @config['servicenow']['variables']
+SN_CACHEDIR = '/tmp'
 
 # Retrieving Host and Kernel from facter
 OS_KERNEL = Facter.value(:kernel)
-OS_HOSTNAME = Facter.value(:hostname)
+OS_HOSTNAME = Facter.value(:fqdn)
 
 # Retrieving table name based upon kernel
-TABLE = @config['servicenow'][OS_KERNEL.downcase + '_table']
+#TABLE = @config['servicenow'][OS_KERNEL.downcase + '_table']
 
 # Build connection using faradady
 conn = Faraday.new(url: SN_INSTANCE.to_s, ssl: { verify: false }) do |faraday|
   faraday.request :url_encoded
   faraday.basic_auth(SN_USER.to_s, SN_PASS.to_s)
-  # faraday.response :logger
+  faraday.response :logger
   faraday.adapter Faraday.default_adapter
 end
 
@@ -35,9 +36,8 @@ end
 # def getServiceNowResponse(conn)
 begin
   response = conn.get do |req|
-    req.url "#{SN_WEBSERVICE}/#{TABLE}"
+    req.url "#{SN_WEBSERVICE}"
     req.params['sysparm_query'] = "name=#{OS_HOSTNAME}"
-    req.params['sysparm_fields'] = SN_VARIABLES.join(',')
     req.params['sysparm_limit'] = 1
     req.headers['Content-Type'] = 'application/json'
   end
@@ -58,16 +58,16 @@ def create_cache(dir, hostname, cache)
 end
 
 # For each defined variable in the config file add a facter
-result = JSON.parse(response.body)
-if result['result'].count == 0
-  raise("ERROR There is no result in ServiceNow in #{TABLE} for #{OS_HOSTNAME}")
-end
+result = response.body.to_json
+#if result['result'].count == 0
+#  raise("ERROR There is no result in ServiceNow in #{TABLE} for #{OS_HOSTNAME}")
+#end
 
 # TODO: cache creation only if the result of  was OK.
-create_cache(SN_CACHEDIR, OS_HOSTNAME, result['result'][0])
+#create_cache(SN_CACHEDIR, OS_HOSTNAME, result['result'][0])
 
-Facter.add(name) do
+Facter.add(:servicenow) do
   setcode do
-    result['result'][0]
+    result
   end
 end
